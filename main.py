@@ -1,8 +1,10 @@
 import sys
+from functools import partial
+
 import pyautogui as pya
 import keyboard
 
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QMainWindow
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QMainWindow, QTextEdit, QPushButton
 from PySide6.QtCore import QTimer, Qt, QPropertyAnimation, QEasingCurve, Signal, QPoint, QThread
 from PySide6.QtGui import QFont, QIcon
 
@@ -42,10 +44,10 @@ class AutoTranslate(QMainWindow):
         self.wait_hotkey.text.connect(self.translate)
         self.wait_hotkey.start()
 
-        self.notify = NotificationManager(self.app, "top-right")
+        self.notify = NotificationManager(self.app, "center")
+        print("Run app!")
 
     def translate(self, text):
-        print(text)
         self.notify.show_notification("", text)
 
 
@@ -60,7 +62,7 @@ class Notification(QWidget):
         self.message = message
 
         self.setWindowTitle(title)
-        self.setGeometry(0, 0, 320, 80)
+        self.setGeometry(0, 0, 320, 250)
         self.setWindowFlags(Qt.ToolTip | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_DeleteOnClose)
 
@@ -89,6 +91,11 @@ class Notification(QWidget):
             notification_y = 10 + notification_count * notification_height
             notification_y = self.parent.screen.primaryScreen().size().height() - notification_y
 
+        elif self.parent.orientation == "center":
+            notification_count += 1
+            notification_x = (self.parent.screen.primaryScreen().size().width() - 250) / 2
+            notification_y = (self.parent.screen.primaryScreen().size().height() - 320) / 2
+
         else:
             return
 
@@ -108,7 +115,6 @@ class Notification(QWidget):
 
         self.show()
 
-        # Start the enter animation
         start_notification_x = (
             self.parent.screen.primaryScreen().size().width()
             if "right" in self.parent.orientation
@@ -147,7 +153,7 @@ class Notification(QWidget):
 
         self.close_notification(hand=True)
 
-    def close_notification(self, hand=False):
+    def close_notification(self, hand=False, *args):
         if hand is False:
             self.disappear_animation.finished.connect(self.close)
             self.disappear_animation.finished.connect(self.deleteLater)
@@ -170,9 +176,12 @@ class Notification(QWidget):
         # self.setCursor(QCursor().shape().ForbiddenCursor)
         self.setObjectName("MessageBox")
         self.setStyleSheet("""
-        QWidget#MessageBox {
+        QWidget#MessageBox, QTextEdit {
             background: #000;
-            border: 1px solid red;
+            border: 1px solid white;
+        }
+        QPushButton {
+            background: red;
         }
         * {
             color: white;
@@ -183,29 +192,25 @@ class Notification(QWidget):
         horizontal.setSpacing(10)
         horizontal.setContentsMargins(10, 10, 10, 10)
 
-        # Create the icon label
-        icon_label = QLabel(self)
-        icon_label.setPixmap(QIcon("icons/icon.png").pixmap(50, 50))  # Use pixmap to set the icon size
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Align the icon to the top of the cell
-        icon_label.setMaximumWidth(50)
-        horizontal.addWidget(icon_label, stretch=1)
-
         # Create the vertical layout
         vertical_layout = QVBoxLayout()
         horizontal.addLayout(vertical_layout)
 
-        # Create the title_label
-        title_label = QLabel(self.title, self)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Align left and vertically centered
-        title_label.setFont(QFont("Inter", 12, QFont.Bold))
-        vertical_layout.addWidget(title_label, stretch=0)
+        # Create close button
+        close_button = QPushButton(parent=self)
+        close_button.clicked.connect(partial(self.close_notification, True))
+        close_button.setFixedSize(15, 15)
+        close_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Create the message_label
-        message_label = QLabel(self.message, self)
+        message_label = QTextEdit(self.message, self)
         message_label.setFont(QFont("Inter", 10))
-        message_label.setWordWrap(True)
-        message_label.setScaledContents(True)
-        message_label.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Align center horizontally and vertically
+        message_label.setReadOnly(True)
+
+        message_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        vertical_layout.addWidget(close_button, stretch=0, alignment=(
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight
+        ))
         vertical_layout.addWidget(message_label, stretch=0)
 
 
@@ -217,7 +222,7 @@ class NotificationManager(QWidget):
         self.timelive = timelive
         self.bind = bind
 
-        if self.orientation not in ["top-right", "top-left", "bottom-right", "bottom-left"]:
+        if self.orientation not in ["top-right", "top-left", "bottom-right", "bottom-left", "center"]:
             raise ValueError("Нет такой ориетации уведомления.")
 
         self.counter = 0
